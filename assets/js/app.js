@@ -100,6 +100,18 @@
     return list;
   }
 
+  // After picking a hue, offer five lightness steps at ±3% intervals.
+  function buildLightnessVariants(center) {
+    const offsets = [-6, -3, 0, 3, 6];
+    return offsets.map(function (delta) {
+      return {
+        h: center.h,
+        s: center.s,
+        l: CK.clamp(center.l + delta, 18, 92),
+      };
+    });
+  }
+
   // Later rounds: five variations sampled across the current search ranges,
   // centered on the color the user just picked.
   function buildVariations(center, spans) {
@@ -123,6 +135,12 @@
       renderGrid(el.exploreGrid, list, onExplorePick, { initial: true });
       return;
     }
+    if (state.explore.round === 1) {
+      list = buildLightnessVariants(state.explore.center);
+      el.roundLabel.textContent = "Fine-tune the lightness — pick your favorite";
+      renderGrid(el.exploreGrid, list, onExplorePick);
+      return;
+    }
     list = buildVariations(state.explore.center, state.explore.spans);
     el.roundLabel.textContent = "Getting closer — pick your favorite shade";
     renderGrid(el.exploreGrid, list, onExplorePick);
@@ -130,17 +148,29 @@
 
   function onExplorePick(color) {
     showResult(color);
+
+    if (state.explore.round === 0) {
+      state.explore.center = { h: color.h, s: color.s, l: color.l };
+      state.explore.round = 1;
+      renderExploreRound();
+      return;
+    }
+
+    if (state.explore.round === 1) {
+      state.explore.spans = { h: 40, s: 36, l: 42 };
+      state.explore.center = { h: color.h, s: color.s, l: color.l };
+      state.explore.round = 2;
+      renderExploreRound();
+      return;
+    }
+
     // Re-center the search on the chosen color and tighten the ranges so the
     // next round shows shades that are closer together.
-    if (state.explore.round === 0) {
-      state.explore.spans = { h: 40, s: 36, l: 42 };
-    } else {
-      state.explore.spans = {
-        h: state.explore.spans.h * 0.55,
-        s: state.explore.spans.s * 0.55,
-        l: state.explore.spans.l * 0.55,
-      };
-    }
+    state.explore.spans = {
+      h: state.explore.spans.h * 0.55,
+      s: state.explore.spans.s * 0.55,
+      l: state.explore.spans.l * 0.55,
+    };
     state.explore.center = { h: color.h, s: color.s, l: color.l };
     state.explore.round += 1;
     renderExploreRound();
