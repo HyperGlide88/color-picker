@@ -5,5 +5,5 @@
  * the footer works even when the GitHub API is unavailable (offline, rate limits).
  */
 window.SiteMeta = {
-  lastUpdated: "2026-05-29T18:16:34Z",
+  lastUpdated: "2026-05-29T19:00:29Z",
 };
