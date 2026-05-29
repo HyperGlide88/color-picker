@@ -44,6 +44,7 @@
     copyPaletteBtn: $("copyPaletteBtn"),
     clearPaletteBtn: $("clearPaletteBtn"),
     toast: $("toast"),
+    lastUpdated: $("lastUpdated"),
   };
 
   /* ---- app state ---- */
@@ -76,7 +77,9 @@
     return btn;
   }
 
-  function renderGrid(container, hslList, onPick) {
+  function renderGrid(container, hslList, onPick, options) {
+    options = options || {};
+    container.classList.toggle("swatch-grid--initial", !!options.initial);
     container.innerHTML = "";
     hslList.forEach(function (hsl) {
       container.appendChild(makeSwatch(hsl, onPick));
@@ -95,6 +98,18 @@
       list.push({ h: CK.wrapHue(offset + i * (360 / SWATCH_COUNT)), s: 72, l: 56 });
     }
     return list;
+  }
+
+  // After picking a hue, offer five lightness steps at ±3% intervals.
+  function buildLightnessVariants(center) {
+    const offsets = [-6, -3, 0, 3, 6];
+    return offsets.map(function (delta) {
+      return {
+        h: center.h,
+        s: center.s,
+        l: CK.clamp(center.l + delta, 18, 92),
+      };
+    });
   }
 
   // Later rounds: five variations sampled across the current search ranges,
@@ -117,26 +132,45 @@
     if (state.explore.round === 0) {
       list = buildFirstRound();
       el.roundLabel.textContent = "Pick the color you like most";
-    } else {
-      list = buildVariations(state.explore.center, state.explore.spans);
-      el.roundLabel.textContent = "Getting closer — pick your favorite shade";
+      renderGrid(el.exploreGrid, list, onExplorePick, { initial: true });
+      return;
     }
+    if (state.explore.round === 1) {
+      list = buildLightnessVariants(state.explore.center);
+      el.roundLabel.textContent = "Fine-tune the lightness — pick your favorite";
+      renderGrid(el.exploreGrid, list, onExplorePick);
+      return;
+    }
+    list = buildVariations(state.explore.center, state.explore.spans);
+    el.roundLabel.textContent = "Getting closer — pick your favorite shade";
     renderGrid(el.exploreGrid, list, onExplorePick);
   }
 
   function onExplorePick(color) {
     showResult(color);
+
+    if (state.explore.round === 0) {
+      state.explore.center = { h: color.h, s: color.s, l: color.l };
+      state.explore.round = 1;
+      renderExploreRound();
+      return;
+    }
+
+    if (state.explore.round === 1) {
+      state.explore.spans = { h: 40, s: 36, l: 42 };
+      state.explore.center = { h: color.h, s: color.s, l: color.l };
+      state.explore.round = 2;
+      renderExploreRound();
+      return;
+    }
+
     // Re-center the search on the chosen color and tighten the ranges so the
     // next round shows shades that are closer together.
-    if (state.explore.round === 0) {
-      state.explore.spans = { h: 40, s: 36, l: 42 };
-    } else {
-      state.explore.spans = {
-        h: state.explore.spans.h * 0.55,
-        s: state.explore.spans.s * 0.55,
-        l: state.explore.spans.l * 0.55,
-      };
-    }
+    state.explore.spans = {
+      h: state.explore.spans.h * 0.55,
+      s: state.explore.spans.s * 0.55,
+      l: state.explore.spans.l * 0.55,
+    };
     state.explore.center = { h: color.h, s: color.s, l: color.l };
     state.explore.round += 1;
     renderExploreRound();
@@ -282,6 +316,42 @@
   }
 
   /* ===================================================================
+   * Footer — last updated from latest commit
+   * =================================================================== */
+  function formatLastUpdated(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  function setLastUpdated(iso) {
+    const label = formatLastUpdated(iso);
+    if (!label || !el.lastUpdated) return;
+    el.lastUpdated.dateTime = iso;
+    el.lastUpdated.textContent = label;
+  }
+
+  function loadLastUpdated() {
+    const fallback = window.SiteMeta && window.SiteMeta.lastUpdated;
+    if (fallback) setLastUpdated(fallback);
+
+    fetch("https://api.github.com/repos/HyperGlide88/color-picker/commits?per_page=1")
+      .then(function (res) {
+        if (!res.ok) throw new Error("GitHub API unavailable");
+        return res.json();
+      })
+      .then(function (commits) {
+        const iso = commits[0] && commits[0].commit && commits[0].commit.committer.date;
+        if (iso) setLastUpdated(iso);
+      })
+      .catch(function () { /* keep baked-in fallback */ });
+  }
+
+  /* ===================================================================
    * Wire everything up
    * =================================================================== */
   function init() {
@@ -322,6 +392,7 @@
       toast("Palette cleared");
     });
 
+    loadLastUpdated();
     renderExploreRound();
     renderPalette();
   }
