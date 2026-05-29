@@ -44,6 +44,7 @@
     copyPaletteBtn: $("copyPaletteBtn"),
     clearPaletteBtn: $("clearPaletteBtn"),
     toast: $("toast"),
+    lastUpdated: $("lastUpdated"),
   };
 
   /* ---- app state ---- */
@@ -282,6 +283,42 @@
   }
 
   /* ===================================================================
+   * Footer — last updated from latest commit
+   * =================================================================== */
+  function formatLastUpdated(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  function setLastUpdated(iso) {
+    const label = formatLastUpdated(iso);
+    if (!label || !el.lastUpdated) return;
+    el.lastUpdated.dateTime = iso;
+    el.lastUpdated.textContent = label;
+  }
+
+  function loadLastUpdated() {
+    const fallback = window.SiteMeta && window.SiteMeta.lastUpdated;
+    if (fallback) setLastUpdated(fallback);
+
+    fetch("https://api.github.com/repos/HyperGlide88/color-picker/commits?per_page=1")
+      .then(function (res) {
+        if (!res.ok) throw new Error("GitHub API unavailable");
+        return res.json();
+      })
+      .then(function (commits) {
+        const iso = commits[0] && commits[0].commit && commits[0].commit.committer.date;
+        if (iso) setLastUpdated(iso);
+      })
+      .catch(function () { /* keep baked-in fallback */ });
+  }
+
+  /* ===================================================================
    * Wire everything up
    * =================================================================== */
   function init() {
@@ -322,6 +359,7 @@
       toast("Palette cleared");
     });
 
+    loadLastUpdated();
     renderExploreRound();
     renderPalette();
   }
