@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Quest — find your perfect color</title>
+  <meta name="description" content="Discover your perfect color by exploring or searching." />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="site-title">Color Quest</h1>
+    <p class="site-tagline">Find your perfect color — explore your way there, or search for it.</p>
+  </header>
+
+  <nav class="mode-toggle" aria-label="Choose a mode">
+    <button class="mode-btn is-active" id="modeExploreBtn" type="button" aria-pressed="true">Explore</button>
+    <button class="mode-btn" id="modeSearchBtn" type="button" aria-pressed="false">Search</button>
+  </nav>
+
+  <main class="content">
+    <!-- Explore mode -->
+    <section class="panel" id="explorePanel">
+      <div class="panel-head">
+        <p class="round-label" id="roundLabel">Pick the color you like most</p>
+        <div class="panel-actions">
+          <button class="text-btn" id="foundBtn" type="button">I found my color!</button>
+          <button class="text-btn" id="restartBtn" type="button">Start over</button>
+        </div>
+      </div>
+      <div class="swatch-grid" id="exploreGrid" role="list"></div>
+    </section>
+
+    <!-- Search mode -->
+    <section class="panel is-hidden" id="searchPanel">
+      <form class="search-form" id="searchForm">
+        <label class="search-label" for="searchInput">Search a color name or hex</label>
+        <div class="search-row">
+          <input class="search-input" id="searchInput" type="text"
+                 placeholder="e.g. teal, coral, #3aa1c9" autocomplete="off" />
+          <button class="primary-btn" id="searchBtn" type="submit">Find</button>
+        </div>
+        <p class="search-hint" id="searchHint">Try a name like "lavender" or a hex like "#ff8800".</p>
+      </form>
+      <div class="swatch-grid" id="searchGrid" role="list"></div>
+    </section>
+
+    <!-- Result -->
+    <section class="result is-hidden" id="resultPanel" aria-live="polite">
+      <div class="result-swatch" id="resultSwatch"></div>
+      <div class="result-info">
+        <p class="result-name" id="resultName">—</p>
+        <p class="result-hex" id="resultHex">#000000</p>
+        <div class="result-actions">
+          <button class="primary-btn" id="copyBtn" type="button">Copy hex</button>
+          <button class="ghost-btn" id="saveBtn" type="button">Save to palette</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Palette -->
+  <footer class="palette" id="palettePanel">
+    <div class="palette-head">
+      <h2 class="palette-title">My palette</h2>
+      <div class="palette-actions">
+        <button class="text-btn" id="copyPaletteBtn" type="button">Copy all</button>
+        <button class="text-btn" id="clearPaletteBtn" type="button">Clear</button>
+      </div>
+    </div>
+    <div class="palette-strip" id="paletteStrip">
+      <p class="palette-empty" id="paletteEmpty">No colors saved yet. Find one you love and tap "Save to palette".</p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/colors.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
