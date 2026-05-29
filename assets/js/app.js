@@ -77,7 +77,9 @@
     return btn;
   }
 
-  function renderGrid(container, hslList, onPick) {
+  function renderGrid(container, hslList, onPick, options) {
+    options = options || {};
+    container.classList.toggle("swatch-grid--initial", !!options.initial);
     container.innerHTML = "";
     hslList.forEach(function (hsl) {
       container.appendChild(makeSwatch(hsl, onPick));
@@ -118,10 +120,11 @@
     if (state.explore.round === 0) {
       list = buildFirstRound();
       el.roundLabel.textContent = "Pick the color you like most";
-    } else {
-      list = buildVariations(state.explore.center, state.explore.spans);
-      el.roundLabel.textContent = "Getting closer — pick your favorite shade";
+      renderGrid(el.exploreGrid, list, onExplorePick, { initial: true });
+      return;
     }
+    list = buildVariations(state.explore.center, state.explore.spans);
+    el.roundLabel.textContent = "Getting closer — pick your favorite shade";
     renderGrid(el.exploreGrid, list, onExplorePick);
   }
 

@@ -108,6 +108,11 @@ body {
   gap: 14px;
 }
 
+.swatch-grid--initial .swatch {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius);
+}
+
 .swatch {
   position: relative;
   border: none;
