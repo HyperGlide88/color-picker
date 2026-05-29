@@ -15,6 +15,7 @@
 
   const CK = window.ColorKit;
   const SWATCH_COUNT = 5;
+  const MIN_SPAN = { h: 4, s: 4, l: 4 };
 
   /* ---- tiny DOM helpers ---- */
   const $ = function (id) { return document.getElementById(id); };
@@ -27,6 +28,7 @@
     exploreGrid: $("exploreGrid"),
     searchGrid: $("searchGrid"),
     roundLabel: $("roundLabel"),
+    exploreRangeHint: $("exploreRangeHint"),
     foundBtn: $("foundBtn"),
     restartBtn: $("restartBtn"),
     searchForm: $("searchForm"),
@@ -55,6 +57,60 @@
   };
 
   /* ===================================================================
+   * Color list helpers — unique swatches every round
+   * =================================================================== */
+  function hslToHex(hsl) {
+    return hsl.hex || CK.hslToHex(hsl.h, hsl.s, hsl.l);
+  }
+
+  function ensureUniqueColors(hslList) {
+    const seen = new Set();
+    const result = [];
+    hslList.forEach(function (hsl, index) {
+      let h = hsl.h;
+      let s = hsl.s;
+      let l = hsl.l;
+      let hex = CK.hslToHex(h, s, l);
+      let nudge = 0;
+      while (seen.has(hex) && nudge < 120) {
+        nudge += 1;
+        h = CK.wrapHue(h + nudge * 1.7);
+        s = CK.clamp(s + (nudge % 4) - 2, 0, 100);
+        l = CK.clamp(l + ((nudge + index) % 5) - 2, 0, 100);
+        hex = CK.hslToHex(h, s, l);
+      }
+      seen.add(hex);
+      result.push({ h: h, s: s, l: l, hex: hex });
+    });
+    return result;
+  }
+
+  function updateExploreRangeHint(hslList) {
+    if (!el.exploreRangeHint || hslList.length === 0) {
+      if (el.exploreRangeHint) el.exploreRangeHint.textContent = "";
+      return;
+    }
+    let lightest = hslList[0];
+    let darkest = hslList[0];
+    let maxLum = -1;
+    let minLum = Infinity;
+    hslList.forEach(function (hsl) {
+      const hex = hslToHex(hsl);
+      const lum = CK.luminanceFromHex(hex);
+      if (lum > maxLum) {
+        maxLum = lum;
+        lightest = hsl;
+      }
+      if (lum < minLum) {
+        minLum = lum;
+        darkest = hsl;
+      }
+    });
+    el.exploreRangeHint.textContent =
+      "Lightest: " + hslToHex(lightest) + " · Darkest: " + hslToHex(darkest);
+  }
+
+  /* ===================================================================
    * Swatch rendering (shared by both modes)
    * =================================================================== */
   function makeSwatch(hsl, onPick) {
@@ -79,9 +135,11 @@
 
   function renderGrid(container, hslList, onPick, options) {
     options = options || {};
+    const unique = ensureUniqueColors(hslList);
     container.classList.toggle("swatch-grid--initial", !!options.initial);
+    if (options.showRange) updateExploreRangeHint(unique);
     container.innerHTML = "";
-    hslList.forEach(function (hsl) {
+    unique.forEach(function (hsl) {
       container.appendChild(makeSwatch(hsl, onPick));
     });
   }
@@ -90,12 +148,20 @@
    * Explore engine — progressive narrowing
    * =================================================================== */
 
-  // Round 1: five clearly different hues spread around the color wheel.
+  // Round 1: five clearly different hues, plus a neutral slot for black/white/gray.
   function buildFirstRound() {
     const offset = Math.floor(Math.random() * 360);
-    const list = [];
-    for (let i = 0; i < SWATCH_COUNT; i++) {
-      list.push({ h: CK.wrapHue(offset + i * (360 / SWATCH_COUNT)), s: 72, l: 56 });
+    const neutrals = [
+      { h: 0, s: 0, l: 0 },
+      { h: 0, s: 0, l: 100 },
+      { h: 0, s: 0, l: 50 },
+      { h: 0, s: 0, l: 85 },
+      { h: 0, s: 0, l: 15 },
+    ];
+    const neutral = neutrals[Math.floor(Math.random() * neutrals.length)];
+    const list = [neutral];
+    for (let i = 1; i < SWATCH_COUNT; i++) {
+      list.push({ h: CK.wrapHue(offset + (i - 1) * (360 / (SWATCH_COUNT - 1))), s: 72, l: 56 });
     }
     return list;
   }
@@ -112,19 +178,33 @@
     });
   }
 
-  // Later rounds: five variations sampled across the current search ranges,
-  // centered on the color the user just picked.
-  function buildVariations(center, spans) {
+  // Later rounds: five variations across current spans; keeps shifting at minimum span.
+  function buildVariations(center, spans, roundIndex) {
+    const atFloor =
+      spans.h <= MIN_SPAN.h && spans.s <= MIN_SPAN.s && spans.l <= MIN_SPAN.l;
+    const phase = (roundIndex || 0) * 2.399963;
     const list = [];
     for (let i = 0; i < SWATCH_COUNT; i++) {
-      const t = i / (SWATCH_COUNT - 1) - 0.5; // -0.5 .. +0.5
+      const t = i / (SWATCH_COUNT - 1) - 0.5;
+      let hOff = t * spans.h;
+      let sOff = t * spans.s;
+      let lOff = -t * spans.l;
+      if (atFloor) {
+        hOff += Math.sin((i + phase) * 1.7) * MIN_SPAN.h * 1.4;
+        sOff += Math.cos((i + phase) * 1.3) * MIN_SPAN.s * 1.4;
+        lOff += Math.sin((i + phase) * 2.1) * MIN_SPAN.l * 1.4;
+      }
       list.push({
-        h: CK.wrapHue(center.h + t * spans.h),
-        s: CK.clamp(center.s + t * spans.s, 25, 95),
-        l: CK.clamp(center.l - t * spans.l, 18, 92),
+        h: CK.wrapHue(center.h + hOff),
+        s: CK.clamp(center.s + sOff, 0, 100),
+        l: CK.clamp(center.l + lOff, 0, 100),
       });
     }
     return list;
+  }
+
+  function exploreGridOptions(extra) {
+    return Object.assign({ showRange: true }, extra || {});
   }
 
   function renderExploreRound() {
@@ -132,18 +212,18 @@
     if (state.explore.round === 0) {
       list = buildFirstRound();
       el.roundLabel.textContent = "Pick the color you like most";
-      renderGrid(el.exploreGrid, list, onExplorePick, { initial: true });
+      renderGrid(el.exploreGrid, list, onExplorePick, exploreGridOptions({ initial: true }));
       return;
     }
     if (state.explore.round === 1) {
       list = buildLightnessVariants(state.explore.center);
       el.roundLabel.textContent = "Fine-tune the lightness — pick your favorite";
-      renderGrid(el.exploreGrid, list, onExplorePick);
+      renderGrid(el.exploreGrid, list, onExplorePick, exploreGridOptions());
       return;
     }
-    list = buildVariations(state.explore.center, state.explore.spans);
+    list = buildVariations(state.explore.center, state.explore.spans, state.explore.round);
     el.roundLabel.textContent = "Getting closer — pick your favorite shade";
-    renderGrid(el.exploreGrid, list, onExplorePick);
+    renderGrid(el.exploreGrid, list, onExplorePick, exploreGridOptions());
   }
 
   function onExplorePick(color) {
@@ -165,11 +245,12 @@
     }
 
     // Re-center the search on the chosen color and tighten the ranges so the
-    // next round shows shades that are closer together.
+    // next round shows shades that are closer together (with a floor so it
+    // never stalls on one repeated color).
     state.explore.spans = {
-      h: state.explore.spans.h * 0.55,
-      s: state.explore.spans.s * 0.55,
-      l: state.explore.spans.l * 0.55,
+      h: Math.max(MIN_SPAN.h, state.explore.spans.h * 0.55),
+      s: Math.max(MIN_SPAN.s, state.explore.spans.s * 0.55),
+      l: Math.max(MIN_SPAN.l, state.explore.spans.l * 0.55),
     };
     state.explore.center = { h: color.h, s: color.s, l: color.l };
     state.explore.round += 1;
@@ -178,6 +259,7 @@
 
   function restartExplore() {
     state.explore = { round: 0, center: null, spans: null };
+    if (el.exploreRangeHint) el.exploreRangeHint.textContent = "";
     renderExploreRound();
   }
 
@@ -188,35 +270,47 @@
     const query = raw.trim();
     if (!query) return null;
 
-    // 1) Direct hex?
     const asRgb = CK.hexToRgb(query);
     if (asRgb) return CK.rgbToHex(asRgb.r, asRgb.g, asRgb.b);
 
-    // 2) Exact named color?
     const exact = CK.lookupName(query);
     if (exact) return exact;
 
-    // 3) Partial name match (e.g. "sky" -> "skyblue").
-    const key = query.toLowerCase().replace(/\s+/g, "");
-    const names = Object.keys(CK.NAMED_COLORS);
-    const hit = names.find(function (n) { return n.indexOf(key) !== -1; });
-    return hit ? CK.NAMED_COLORS[hit] : null;
+    return CK.findNamedColor(query);
+  }
+
+  function buildSimilarColors(base, exactHex) {
+    const similar = buildVariations(base, { h: 22, s: 26, l: 28 }, 0);
+    const filtered = similar.filter(function (hsl) {
+      return hslToHex(hsl).toLowerCase() !== exactHex.toLowerCase();
+    });
+    const unique = ensureUniqueColors(filtered);
+    return unique.slice(0, SWATCH_COUNT - 1);
   }
 
   function runSearch(raw) {
+    const query = raw.trim();
+    const directRgb = CK.hexToRgb(query);
     const hex = resolveQuery(raw);
     if (!hex) {
-      el.searchHint.textContent = "Hmm, no match. Try a name like \"teal\" or a hex like \"#ff8800\".";
+      el.searchHint.textContent = "Hmm, no match. Try a name like \"teal\", \"lavender haze\", or a hex like \"#ff8800\".";
       el.searchGrid.innerHTML = "";
       return;
     }
-    el.searchHint.textContent = "Here are 5 colors near \"" + raw.trim() + "\":";
 
     const rgb = CK.hexToRgb(hex);
     const base = CK.rgbToHsl(rgb.r, rgb.g, rgb.b);
-    // Moderate spread so the 5 options are clearly related but each unique.
-    const list = buildVariations(base, { h: 24, s: 28, l: 30 });
-    renderGrid(el.searchGrid, list, showResult);
+    const exactHsl = { h: base.h, s: base.s, l: base.l, hex: hex };
+
+    if (directRgb) {
+      el.searchHint.textContent = "Exact match for \"" + query + "\", plus similar shades:";
+      const similar = buildSimilarColors(base, hex);
+      renderGrid(el.searchGrid, [exactHsl].concat(similar), showResult);
+      return;
+    }
+
+    el.searchHint.textContent = "Here are 5 colors near \"" + query + "\":";
+    renderGrid(el.searchGrid, buildVariations(base, { h: 24, s: 28, l: 30 }, 0), showResult);
   }
 
   /* ===================================================================
