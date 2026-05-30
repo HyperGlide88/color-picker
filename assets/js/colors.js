@@ -158,25 +158,146 @@
     taupe: "#483c32", vermillion: "#e34234", wine: "#722f37",
   };
 
+  // Pin exact labels for curated swatches so they always read correctly.
+  const EXACT_HEX_LABELS = {
+    "#1a1a1a": "black",
+    "#c84b43": "red",
+    "#d4a843": "yellow",
+    "#3d9a6e": "green",
+    "#4a78c2": "blue",
+    "#f5f3ef": "white",
+  };
+
+  // Human-readable labels for named-color keys (overrides auto-formatting).
+  const DISPLAY_LABELS = {
+    robinsEgg: "robin's egg",
+    lavenderhaze: "lavender haze",
+    lightskyblue: "light sky blue",
+    deepskyblue: "deep sky blue",
+    dodgerblue: "dodger blue",
+    cornflowerblue: "cornflower blue",
+    mediumseagreen: "medium sea green",
+    lightseagreen: "light sea green",
+    darkslategray: "dark slate gray",
+    lightslategray: "light slate gray",
+    slategray: "slate gray",
+    yellowgreen: "yellow green",
+    greenyellow: "green yellow",
+    blueviolet: "blue violet",
+    darkviolet: "dark violet",
+    mediumpurple: "medium purple",
+    mediumorchid: "medium orchid",
+    palevioletred: "pale violet red",
+    mediumvioletred: "medium violet red",
+    lightgoldenrodyellow: "light goldenrod yellow",
+    darkgoldenrod: "dark goldenrod",
+    darkorange: "dark orange",
+    darkcyan: "dark cyan",
+    darkmagenta: "dark magenta",
+    darkorchid: "dark orchid",
+    darkgreen: "dark green",
+    darkred: "dark red",
+    darkblue: "dark blue",
+    darkgray: "dark gray",
+    dimgray: "dim gray",
+    lightgray: "light gray",
+    lightpink: "light pink",
+    lightcyan: "light cyan",
+    lightyellow: "light yellow",
+    lightcoral: "light coral",
+    lightsalmon: "light salmon",
+    lightblue: "light blue",
+    ghostwhite: "ghost white",
+    whitesmoke: "white smoke",
+    floralwhite: "floral white",
+    antiquewhite: "antique white",
+    blanchedalmond: "blanched almond",
+    lemonchiffon: "lemon chiffon",
+    mintcream: "mint cream",
+    lavenderblush: "lavender blush",
+    navajowhite: "navajo white",
+    olivedrab: "olive drab",
+    mediumspringgreen: "medium spring green",
+    mediumslateblue: "medium slate blue",
+    paleturquoise: "pale turquoise",
+    sandybrown: "sandy brown",
+    rosybrown: "rosy brown",
+    peachpuff: "peach puff",
+  };
+
   // Normalize a search string: lowercase, drop spaces/apostrophes/punctuation.
   function normalizeName(name) {
     return name.trim().toLowerCase().replace(/[''.\-_]/g, "").replace(/\s+/g, "");
   }
 
-  // Pretty-print a normalized key for display (robinsEgg -> robins egg).
-  function formatNameKey(key) {
-    return key
+  // Turn a camelCase or run-together key into a readable label.
+  function humanizeColorKey(key) {
+    if (DISPLAY_LABELS[key]) return DISPLAY_LABELS[key];
+    const spaced = key
       .replace(/([a-z])([A-Z])/g, "$1 $2")
-      .replace(/([a-z])(\d)/g, "$1 $2")
-      .toLowerCase();
+      .replace(/(light|dark|pale|deep|medium|dim|hot|soft|sky|sea|forest|royal|steel|slate|cornflower|goldenrod|spring|robin|egg|haze|violet|golden|orange|yellow|green|blue|red|gray|grey|pink|brown|purple|cyan|teal|rose|gold|white|black|salmon|coral|turquoise|orchid|magenta|indigo|navy|lime|olive|khaki|tan|beige|ivory|snow|azure|copper|rust|wine|sage|jade|lilac|mauve|mustard|ochre|pewter|amber|ruby|emerald|sapphire|cerulean|cobalt|burgundy|champagne|terracotta|paprika|scarlet|vermillion|eggplant|sienna|chocolate|peru|wheat|plum|thistle|tomato|crimson|maroon|fuchsia|aqua|peach|mint|linen|bisque|wheat|moccasin|peru|charcoal|silver|bronze|taupe)(?=[a-z])/gi, " $1")
+      .replace(/\s+/g, " ")
+      .trim();
+    return spaced.toLowerCase();
   }
 
-  // Straight-line distance between two colors in RGB space. Smaller = closer.
-  function rgbDistance(a, b) {
+  // Perceptual-ish RGB distance (better than plain Euclidean for naming).
+  function colorDistance(a, b) {
+    const rMean = (a.r + b.r) / 2;
     const dr = a.r - b.r;
     const dg = a.g - b.g;
     const db = a.b - b.b;
-    return Math.sqrt(dr * dr + dg * dg + db * db);
+    return Math.sqrt(
+      (2 + rMean / 256) * dr * dr +
+      4 * dg * dg +
+      (2 + (255 - rMean) / 256) * db * db
+    );
+  }
+
+  function hueFamilyName(h) {
+    if (h < 15 || h >= 345) return "red";
+    if (h < 40) return "orange";
+    if (h < 55) return "gold";
+    if (h < 75) return "yellow";
+    if (h < 95) return "chartreuse";
+    if (h < 150) return "green";
+    if (h < 175) return "teal";
+    if (h < 195) return "cyan";
+    if (h < 215) return "sky blue";
+    if (h < 250) return "blue";
+    if (h < 280) return "indigo";
+    if (h < 305) return "purple";
+    if (h < 330) return "magenta";
+    return "rose";
+  }
+
+  function describeFromHsl(h, s, l) {
+    if (s <= 10) {
+      if (l <= 12) return "black";
+      if (l >= 93) return "white";
+      if (l <= 28) return "dark gray";
+      if (l >= 78) return "light gray";
+      return "gray";
+    }
+    const family = hueFamilyName(h);
+    if (l <= 22) return "deep " + family;
+    if (l <= 38) return "dark " + family;
+    if (l >= 82) return "pale " + family;
+    if (l >= 68) return "light " + family;
+    if (s <= 32) return "muted " + family;
+    if (s >= 82) return "vivid " + family;
+    return family;
+  }
+
+  function modifierForMatch(hsl, distance) {
+    if (distance <= 28) return "";
+    if (hsl.l <= 22) return "deep";
+    if (hsl.l <= 38) return "dark";
+    if (hsl.l >= 82) return "pale";
+    if (hsl.l >= 68) return "light";
+    if (hsl.s <= 32) return "muted";
+    if (hsl.s >= 82) return "bright";
+    return "soft";
   }
 
   // WCAG relative luminance — better "lightest/darkest" than HSL alone.
@@ -194,21 +315,37 @@
     return relativeLuminance(rgb.r, rgb.g, rgb.b);
   }
 
-  // Find the closest named color for any hex, returning a friendly label.
+  // Find a clear, accurate label for any hex color.
   function nearestColorName(hex) {
+    if (typeof hex !== "string") return "unknown color";
+    const key = hex.trim().toLowerCase();
+    if (EXACT_HEX_LABELS[key]) return EXACT_HEX_LABELS[key];
+
     const rgb = hexToRgb(hex);
-    if (!rgb) return "Mystery color";
+    if (!rgb) return "unknown color";
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+
     let bestName = null;
     let bestDist = Infinity;
     for (const name in NAMED_COLORS) {
-      const dist = rgbDistance(rgb, hexToRgb(NAMED_COLORS[name]));
+      const ref = hexToRgb(NAMED_COLORS[name]);
+      const dist = colorDistance(rgb, ref);
       if (dist < bestDist) {
         bestDist = dist;
         bestName = name;
       }
     }
-    const label = formatNameKey(bestName);
-    return bestDist < 18 ? label : "shade of " + label;
+
+    const baseLabel = humanizeColorKey(bestName);
+
+    if (bestDist <= 28) return baseLabel;
+
+    if (bestDist <= 72) {
+      const mod = modifierForMatch(hsl, bestDist);
+      return mod ? mod + " " + baseLabel.toLowerCase() : baseLabel;
+    }
+
+    return describeFromHsl(hsl.h, hsl.s, hsl.l);
   }
 
   // Look up an exact named color (returns hex or null).
@@ -236,6 +373,47 @@
     return reverse ? NAMED_COLORS[reverse] : null;
   }
 
+  // Resolve a search string to a hex plus an accurate label when possible.
+  function resolveColorQuery(raw) {
+    const query = typeof raw === "string" ? raw.trim() : "";
+    if (!query) return null;
+
+    const direct = hexToRgb(query);
+    if (direct) {
+      return { hex: rgbToHex(direct.r, direct.g, direct.b), label: null };
+    }
+
+    const key = normalizeName(query);
+    let matchedKey = null;
+
+    if (NAMED_COLORS[key]) {
+      matchedKey = key;
+    } else {
+      matchedKey = Object.keys(NAMED_COLORS).find(function (name) {
+        return normalizeName(name) === key;
+      }) || null;
+    }
+
+    if (matchedKey) {
+      return {
+        hex: NAMED_COLORS[matchedKey],
+        label: humanizeColorKey(matchedKey),
+      };
+    }
+
+    const hex = findNamedColor(query);
+    if (!hex) return null;
+
+    matchedKey = Object.keys(NAMED_COLORS).find(function (name) {
+      return NAMED_COLORS[name].toLowerCase() === hex.toLowerCase();
+    });
+
+    return {
+      hex: hex,
+      label: matchedKey ? humanizeColorKey(matchedKey) : nearestColorName(hex),
+    };
+  }
+
   global.ColorKit = {
     clamp: clamp,
     wrapHue: wrapHue,
@@ -247,6 +425,7 @@
     nearestColorName: nearestColorName,
     lookupName: lookupName,
     findNamedColor: findNamedColor,
+    resolveColorQuery: resolveColorQuery,
     normalizeName: normalizeName,
     luminanceFromHex: luminanceFromHex,
     NAMED_COLORS: NAMED_COLORS,
